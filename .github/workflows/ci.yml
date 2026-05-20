@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least-privilege defaults; individual jobs upgrade only what they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore SerenAuth.sln
+
+      - name: Build (Release, warnings-as-errors)
+        run: dotnet build SerenAuth.sln -c Release --no-restore
+
+      - name: Test + Coverage
+        env:
+          # Deterministic test config so the API host can boot in the
+          # integration test fixture.
+          Jwt__SigningKey: "ci-signing-key-please-replace-ci-signing-key-please-replace"
+          Jwt__Issuer: "serenauth.ci"
+          Jwt__Audience: "serenauth.ci.web"
+        run: |
+          dotnet test SerenAuth.sln \
+            -c Release --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report + enforce threshold
+        run: |
+          export PATH="$PATH:/home/runner/.dotnet/tools"
+          reportgenerator \
+            -reports:'coverage/**/coverage.cobertura.xml' \
+            -targetdir:coverage/report \
+            -reporttypes:'HtmlSummary;TextSummary;Cobertura'
+          line=$(grep -E "^Line coverage:" coverage/report/Summary.txt | awk '{print $3}' | tr -d '%')
+          echo "Line coverage: $line%"
+          # Bash floating-point comparison
+          awk -v c="$line" 'BEGIN { exit (c+0 >= 85.0) ? 0 : 1 }'
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: coverage/report
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (CI + coverage, 85% threshold enforced in jest.config)
+        run: npm run test:ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_GRAPHQL_ENDPOINT: "http://localhost:8080/graphql"
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: apps/web/coverage

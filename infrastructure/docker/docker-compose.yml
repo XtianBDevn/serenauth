@@ -1,0 +1,68 @@
+name: serenauth
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-serenauth}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-serenauth}
+      MONGO_INITDB_DATABASE: serenauth
+    volumes:
+      - mongo-data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks: [serenauth-net]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      Jwt__Issuer: ${Jwt__Issuer:-serenauth.local}
+      Jwt__Audience: ${Jwt__Audience:-serenauth.web}
+      Jwt__SigningKey: ${Jwt__SigningKey:?Jwt__SigningKey must be set}
+      Mongo__ConnectionString: mongodb://${MONGO_INITDB_ROOT_USERNAME:-serenauth}:${MONGO_INITDB_ROOT_PASSWORD:-serenauth}@mongo:27017/?authSource=admin
+      Mongo__Database: serenauth
+      Seeding__Enabled: ${Seeding__Enabled:-true}
+      Cors__AllowedOrigins: ${Cors__AllowedOrigins:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    networks: [serenauth-net]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_GRAPHQL_ENDPOINT: ${NEXT_PUBLIC_GRAPHQL_ENDPOINT:-http://localhost:8080/graphql}
+    ports:
+      - "3000:3000"
+    networks: [serenauth-net]
+
+networks:
+  serenauth-net:
+    driver: bridge
+
+volumes:
+  mongo-data:

@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.7
+# ----------------------------------------------------------
+# Build stage
+# ----------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution-wide files first for better layer caching.
+COPY Directory.Build.props Directory.Packages.props SerenAuth.sln ./
+
+# Project files
+COPY src/SerenAuth.Domain/SerenAuth.Domain.csproj          src/SerenAuth.Domain/
+COPY src/SerenAuth.Application/SerenAuth.Application.csproj src/SerenAuth.Application/
+COPY src/SerenAuth.Infrastructure/SerenAuth.Infrastructure.csproj src/SerenAuth.Infrastructure/
+COPY src/SerenAuth.Api/SerenAuth.Api.csproj                src/SerenAuth.Api/
+
+RUN dotnet restore src/SerenAuth.Api/SerenAuth.Api.csproj
+
+# Now copy the rest and publish.
+COPY src ./src
+RUN dotnet publish src/SerenAuth.Api/SerenAuth.Api.csproj \
+    -c Release -o /app/publish --no-restore
+
+# ----------------------------------------------------------
+# Runtime stage — chiseled, non-root.
+# ----------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    DOTNET_USE_POLLING_FILE_WATCHER=false
+
+# Non-root user.
+RUN useradd -u 10001 -m serenauth
+USER 10001:10001
+
+COPY --from=build --chown=10001:10001 /app/publish ./
+EXPOSE 8080
+HEALTHCHECK --interval=20s --timeout=3s --start-period=20s --retries=5 \
+  CMD wget --spider -q http://localhost:8080/health/ready || exit 1
+ENTRYPOINT ["dotnet", "SerenAuth.Api.dll"]
