@@ -9,5 +9,11 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Deterministic>true</Deterministic>
+    <!--
+      CA1848 (LoggerMessage delegates) and CA1859 (return Task<T> vs Task)
+      are perf suggestions we deliberately accept; they fire on idiomatic
+      Serilog + Mongo driver usage and aren't on the MVP's hot path.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1859;CA1305</NoWarn>
   </PropertyGroup>
 </Project>

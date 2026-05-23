@@ -3,15 +3,11 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using SerenAuth.Application.Abstractions;
 using SerenAuth.Domain.Entities;
 using SerenAuth.Infrastructure.Options;
 
 namespace SerenAuth.Infrastructure.Security;
-
-public interface IJwtTokenService
-{
-    string Issue(User user);
-}
 
 /// <summary>
 /// Issues short-lived HS256 JWTs that carry the user's org and role.

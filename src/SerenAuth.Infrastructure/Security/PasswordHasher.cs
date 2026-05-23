@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using SerenAuth.Application.Abstractions;
 
 namespace SerenAuth.Infrastructure.Security;
 
@@ -7,12 +8,6 @@ namespace SerenAuth.Infrastructure.Security;
 /// a CSPRNG. Verification is constant-time via <see cref="CryptographicOperations.FixedTimeEquals"/>
 /// to avoid timing side channels.
 /// </summary>
-public interface IPasswordHasher
-{
-    (string hash, string salt) Hash(string password);
-    bool Verify(string password, string hash, string salt);
-}
-
 public sealed class PasswordHasher : IPasswordHasher
 {
     private const int Iterations = 100_000;

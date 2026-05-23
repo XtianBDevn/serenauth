@@ -16,3 +16,16 @@ export const PRIOR_AUTHORIZATIONS_QUERY = gql`
     }
   }
 `;
+
+export const LOGIN_MUTATION = gql`
+  mutation Login($input: LoginInput!) {
+    login(input: $input) {
+      token
+      email
+      displayName
+      role
+      organizationId
+      issuedAt
+    }
+  }
+`;

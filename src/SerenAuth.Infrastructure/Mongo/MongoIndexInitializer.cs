@@ -16,9 +16,9 @@ public sealed class MongoIndexInitializer(MongoContext ctx) : IHostedService
         await EnsureIndexAsync(
             ctx.Users,
             Builders<User>.IndexKeys.Ascending(u => u.Email),
-            unique: true,
             name: "ix_users_email_unique",
-            cancellationToken);
+            ct: cancellationToken,
+            unique: true);
 
         await EnsureIndexAsync(
             ctx.Users,

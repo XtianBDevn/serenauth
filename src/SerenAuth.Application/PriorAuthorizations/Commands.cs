@@ -16,8 +16,35 @@ public sealed record CreatePriorAuthorizationCommand(
     string Payer,
     double AiConfidence) : IRequest<PriorAuthorizationDto>;
 
+/// <summary>
+/// Edits the clinical fields of a draft PA. Refuses to touch a PA that
+/// has already been submitted — that guarantee lives on the entity, the
+/// handler just translates the failure into a transport-level error.
+/// </summary>
+public sealed record UpdatePriorAuthorizationCommand(
+    string Id,
+    string ProcedureCpt,
+    string DiagnosisIcd10,
+    string Payer,
+    double AiConfidence) : IRequest<PriorAuthorizationDto>;
+
 /// <summary>Submits a draft, transitioning Draft → Pending.</summary>
 public sealed record SubmitPriorAuthorizationCommand(string Id) : IRequest<PriorAuthorizationDto>;
+
+/// <summary>
+/// Records the payer's decision on a Pending PA. Admin-only — the
+/// decision closes the lifecycle so it must be deliberate. Approve and
+/// Deny are modeled as a single command + enum so they share the audit
+/// path and the policy gate.
+/// </summary>
+public enum PaDecision
+{
+    Approve = 0,
+    Deny = 1
+}
+
+public sealed record DecidePriorAuthorizationCommand(string Id, PaDecision Decision)
+    : IRequest<PriorAuthorizationDto>;
 
 /// <summary>
 /// Lists PAs for the caller's organization. Returned data is filtered

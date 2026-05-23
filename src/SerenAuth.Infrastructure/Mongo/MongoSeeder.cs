@@ -2,11 +2,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using SerenAuth.Application.Abstractions;
 using SerenAuth.Domain.Entities;
 using SerenAuth.Domain.Enums;
 using SerenAuth.Domain.ValueObjects;
 using SerenAuth.Infrastructure.Options;
-using SerenAuth.Infrastructure.Security;
 
 namespace SerenAuth.Infrastructure.Mongo;
 

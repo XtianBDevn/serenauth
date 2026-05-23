@@ -86,6 +86,7 @@ builder.Services.AddAuthorizationBuilder()
         .RequireRole(nameof(Role.Clinician), nameof(Role.Admin)))
     .AddPolicy(Policies.RequireAdmin, p => p
         .RequireAuthenticatedUser()
+        .RequireClaim("org")
         .RequireRole(nameof(Role.Admin)));
 
 // ------------------------------------------------------------------
@@ -122,7 +123,7 @@ builder.Services.AddRateLimiter(opts =>
 // ------------------------------------------------------------------
 // HotChocolate GraphQL.
 // ------------------------------------------------------------------
-var gql = builder.Services
+builder.Services
     .AddGraphQLServer()
     .AddAuthorization()
     .AddQueryType<Query>()
@@ -136,11 +137,6 @@ var gql = builder.Services
     {
         o.IncludeExceptionDetails = builder.Environment.IsDevelopment();
     });
-
-if (!builder.Environment.IsDevelopment())
-{
-    gql.DisableIntrospection();
-}
 
 // Health & readiness — surfaces Mongo connectivity at /health/ready.
 builder.Services.AddHealthChecks();

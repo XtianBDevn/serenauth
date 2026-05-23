@@ -1,15 +1,47 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
+import { useRouter } from "next/navigation";
 import { PRIOR_AUTHORIZATIONS_QUERY } from "@/lib/graphql/operations";
-import type { PriorAuthorizationDto, PaStatus } from "@serenauth/shared-types";
+import type { PriorAuthorizationDto, PaStatus, Role } from "@serenauth/shared-types";
 
 const STATUSES: Array<PaStatus | "ALL"> = ["ALL", "DRAFT", "PENDING", "APPROVED", "DENIED"];
 
+interface SignedInUser {
+  email: string;
+  displayName: string;
+  role: Role;
+  organizationId: string;
+}
+
 export function DashboardView() {
+  const router = useRouter();
   const [payer, setPayer] = useState<string>("");
   const [status, setStatus] = useState<PaStatus | "ALL">("ALL");
+  const [user, setUser] = useState<SignedInUser | null>(null);
+
+  useEffect(() => {
+    const token = window.localStorage.getItem("serenauth.token");
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    const raw = window.localStorage.getItem("serenauth.user");
+    if (raw) {
+      try {
+        setUser(JSON.parse(raw) as SignedInUser);
+      } catch {
+        /* ignore — banner just stays empty */
+      }
+    }
+  }, [router]);
+
+  function signOut() {
+    window.localStorage.removeItem("serenauth.token");
+    window.localStorage.removeItem("serenauth.user");
+    router.replace("/login");
+  }
 
   const { data, loading, error } = useQuery<{
     priorAuthorizations: PriorAuthorizationDto[];
@@ -31,6 +63,25 @@ export function DashboardView() {
 
   return (
     <section className="space-y-6">
+      {user ? (
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+          <div>
+            <span className="font-medium text-slate-900">{user.displayName}</span>
+            <span className="ml-2 text-slate-500">({user.email})</span>
+            <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-inset ring-brand-200">
+              {user.role}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={signOut}
+            className="text-xs font-medium text-slate-600 hover:text-rose-700"
+          >
+            Sign out
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-1">
           {STATUSES.map((s) => (

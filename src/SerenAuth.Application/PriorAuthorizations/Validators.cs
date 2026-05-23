@@ -32,6 +32,35 @@ public sealed class SubmitPriorAuthorizationCommandValidator
     }
 }
 
+public sealed class UpdatePriorAuthorizationCommandValidator
+    : AbstractValidator<UpdatePriorAuthorizationCommand>
+{
+    public UpdatePriorAuthorizationCommandValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.ProcedureCpt)
+            .NotEmpty()
+            .Must(CptCode.Allowed.Contains)
+            .WithMessage("CPT code is not in the dialysis MVP allowlist.");
+        RuleFor(x => x.DiagnosisIcd10)
+            .NotEmpty()
+            .Must(Icd10Code.Allowed.Contains)
+            .WithMessage("ICD-10 code is not in the dialysis MVP allowlist.");
+        RuleFor(x => x.Payer).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.AiConfidence).InclusiveBetween(0.0, 1.0);
+    }
+}
+
+public sealed class DecidePriorAuthorizationCommandValidator
+    : AbstractValidator<DecidePriorAuthorizationCommand>
+{
+    public DecidePriorAuthorizationCommandValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Decision).IsInEnum();
+    }
+}
+
 public sealed class GetPriorAuthorizationsQueryValidator
     : AbstractValidator<GetPriorAuthorizationsQuery>
 {

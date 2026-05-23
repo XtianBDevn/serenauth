@@ -35,7 +35,7 @@ export default function RootLayout({
               </Link>
               <Link
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-800 hover:border-brand-600 hover:text-brand-700"
-                href="/dashboard"
+                href="/login"
               >
                 Sign in
               </Link>

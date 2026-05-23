@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -98,7 +99,7 @@ public sealed class PriorAuthorizationsTests : IClassFixture<MongoFixture>, IAsy
             """;
 
         var createResp = await PostAsync(createMutation);
-        createResp["data"]!["createPriorAuthorization"]!["status"]!.GetString()
+        createResp["data"]!["createPriorAuthorization"]!["status"]!.GetValue<string>()
             .Should().Be("DRAFT");
 
         var listQuery = """
@@ -147,11 +148,11 @@ public sealed class PriorAuthorizationsTests : IClassFixture<MongoFixture>, IAsy
         resp["errors"].Should().NotBeNull();
     }
 
-    private async Task<JsonElement> PostAsync(string query)
+    private async Task<JsonNode> PostAsync(string query)
     {
         var resp = await _client.PostAsJsonAsync("/graphql", new { query });
         var body = await resp.Content.ReadAsStringAsync();
-        return JsonDocument.Parse(body).RootElement.Clone();
+        return JsonNode.Parse(body) ?? throw new InvalidOperationException("Empty GraphQL response.");
     }
 
     private static string IssueClinicianToken(string orgId)

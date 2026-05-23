@@ -65,6 +65,39 @@ public sealed class PriorAuthorization
     }
 
     /// <summary>
+    /// Edits a draft PA's clinical fields. Allowed only while the PA is
+    /// still in <see cref="PaStatus.Draft"/> — once submitted, the
+    /// authorization is locked so the payer always sees what was
+    /// approved on submission, not a later rewrite. Inputs flow through
+    /// the same value objects as <see cref="CreateDraft"/> so the
+    /// allowlist + range checks can't be skipped on the update path.
+    /// </summary>
+    public void Update(
+        CptCode cpt,
+        Icd10Code icd10,
+        Payer payer,
+        double aiConfidence)
+    {
+        if (Status != PaStatus.Draft)
+        {
+            throw new InvalidOperationException($"Only drafts can be edited (current status: {Status}).");
+        }
+        ArgumentNullException.ThrowIfNull(cpt);
+        ArgumentNullException.ThrowIfNull(icd10);
+        ArgumentNullException.ThrowIfNull(payer);
+        if (aiConfidence is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(aiConfidence), "AI confidence must be between 0 and 1.");
+        }
+
+        ProcedureCpt = cpt.Value;
+        DiagnosisIcd10 = icd10.Value;
+        Payer = payer.Name;
+        AiConfidence = aiConfidence;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Transition Draft → Pending. Submission is irreversible.
     /// </summary>
     public void Submit()

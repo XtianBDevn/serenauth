@@ -43,6 +43,35 @@ public sealed class CreatePriorAuthorizationHandler(
     }
 }
 
+public sealed class UpdatePriorAuthorizationHandler(
+    IPriorAuthorizationRepository repo,
+    ICurrentUser currentUser,
+    IAuditPublisher audit)
+    : IRequestHandler<UpdatePriorAuthorizationCommand, PriorAuthorizationDto>
+{
+    public async Task<PriorAuthorizationDto> Handle(
+        UpdatePriorAuthorizationCommand request,
+        CancellationToken cancellationToken)
+    {
+        var pa = await repo.GetAsync(currentUser.OrganizationId, request.Id, cancellationToken)
+            ?? throw new InvalidOperationException("PriorAuthorization not found.");
+
+        // Value-object construction enforces the same allowlist + range
+        // guarantees as CreateDraft. The domain Update method enforces
+        // the Draft-only invariant.
+        pa.Update(
+            CptCode.Create(request.ProcedureCpt),
+            Icd10Code.Create(request.DiagnosisIcd10),
+            Payer.Create(request.Payer),
+            request.AiConfidence);
+
+        await repo.UpdateAsync(pa, cancellationToken);
+        await audit.PublishAsync(AuditAction.UPDATE_PA, nameof(PriorAuthorization), pa.Id, cancellationToken);
+
+        return PriorAuthorizationDto.FromEntity(pa);
+    }
+}
+
 public sealed class SubmitPriorAuthorizationHandler(
     IPriorAuthorizationRepository repo,
     ICurrentUser currentUser,
@@ -60,6 +89,38 @@ public sealed class SubmitPriorAuthorizationHandler(
 
         await repo.UpdateAsync(pa, cancellationToken);
         await audit.PublishAsync(AuditAction.SUBMIT_PA, nameof(PriorAuthorization), pa.Id, cancellationToken);
+
+        return PriorAuthorizationDto.FromEntity(pa);
+    }
+}
+
+public sealed class DecidePriorAuthorizationHandler(
+    IPriorAuthorizationRepository repo,
+    ICurrentUser currentUser,
+    IAuditPublisher audit)
+    : IRequestHandler<DecidePriorAuthorizationCommand, PriorAuthorizationDto>
+{
+    public async Task<PriorAuthorizationDto> Handle(
+        DecidePriorAuthorizationCommand request,
+        CancellationToken cancellationToken)
+    {
+        var pa = await repo.GetAsync(currentUser.OrganizationId, request.Id, cancellationToken)
+            ?? throw new InvalidOperationException("PriorAuthorization not found.");
+
+        switch (request.Decision)
+        {
+            case PaDecision.Approve:
+                pa.Approve();
+                break;
+            case PaDecision.Deny:
+                pa.Deny();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(request), request.Decision, "Unknown PA decision.");
+        }
+
+        await repo.UpdateAsync(pa, cancellationToken);
+        await audit.PublishAsync(AuditAction.DECIDE_PA, nameof(PriorAuthorization), pa.Id, cancellationToken);
 
         return PriorAuthorizationDto.FromEntity(pa);
     }

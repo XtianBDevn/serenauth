@@ -49,3 +49,11 @@ public sealed record ProviderDto(
     public static ProviderDto FromEntity(Provider p) =>
         new(p.Id, p.FirstName, p.LastName, p.Npi, p.Specialty);
 }
+
+public sealed record LoginResultDto(
+    string Token,
+    string Email,
+    string DisplayName,
+    Role Role,
+    string OrganizationId,
+    DateTime IssuedAt);
