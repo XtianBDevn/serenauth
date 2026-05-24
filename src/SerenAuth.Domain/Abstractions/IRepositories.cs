@@ -40,9 +40,18 @@ public interface IPriorAuthorizationRepository
 }
 
 /// <summary>
-/// Append-only. No update or delete is exposed by design.
+/// Append-only. No update or delete is exposed by design — the read
+/// surface is deliberately narrow: org-scoped, optionally filtered by
+/// action and time, capped at a hard limit.
 /// </summary>
 public interface IAuditEventRepository
 {
     Task InsertAsync(AuditEvent evt, CancellationToken ct);
+
+    Task<IReadOnlyList<AuditEvent>> ListByOrganizationAsync(
+        string organizationId,
+        AuditAction? action,
+        DateTime? since,
+        int limit,
+        CancellationToken ct);
 }

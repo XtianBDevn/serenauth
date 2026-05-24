@@ -151,6 +151,41 @@ the operation*, the entity answers *whether the operation is valid right
 now*. Putting both checks in one layer would let either a route refactor
 or a policy tweak silently re-open the edit window after submission.
 
+### 3b. Audit-read path
+
+The append-only audit collection is the system's compliance backbone — but
+until an admin can read it back, the "trust me, it's logged" promise is
+paper-only. The `auditEvents` query closes that loop. It's gated by
+`RequireAdmin` (same policy as PA decision: the most powerful read sits
+behind the most restrictive role) and is **always** scoped to the caller's
+organization by the handler, not by the client.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant API as API (HotChocolate)
+    participant Med as MediatR + Validator
+    participant Mongo as MongoDB
+
+    Admin->>API: query auditEvents(action, since, limit)
+    API->>API: policy RequireAdmin
+    API->>Med: GetAuditEventsQuery
+    Med->>Med: validate (limit 1..500, since not in future)
+    Med->>Mongo: find audit_events where<br/>orgId == caller.org<br/>[+ action / since]<br/>sort by timestamp desc, limit
+    Note over Med,Mongo: uses ix_audit_org_ts;<br/>no cross-tenant read is possible
+    API-->>Admin: AuditEventDto[]
+```
+
+Two intentional non-features:
+
+1. **No `VIEW_AUDIT` event is emitted by the read.** Logging every audit
+   read would inflate the log and create a weird feedback shape ("the
+   audit log shows that the audit log was read"). If we ever need
+   read-side accountability, it belongs in middleware, not the handler.
+2. **No cross-tenant escape hatch.** Even a global-admin role wouldn't
+   bypass org scoping — there's no resolver argument that widens it.
+
 ## 4. Role / policy matrix
 
 | Operation | Policy | Viewer | Intake | Clinician | Admin |
@@ -162,6 +197,7 @@ or a policy tweak silently re-open the edit window after submission.
 | `updatePriorAuthorization` (Draft only) | `RequirePaWrite` | — | ✓ | ✓ | ✓ |
 | `submitPriorAuthorization` | `RequirePaSubmit` | — | — | ✓ | ✓ |
 | `decidePriorAuthorization` | `RequireAdmin` | — | — | — | ✓ |
+| `auditEvents` query | `RequireAdmin` | — | — | — | ✓ |
 
 All policies additionally require an `org` claim — a token without one is
 treated as unauthenticated for org-scoped operations.
@@ -189,6 +225,12 @@ order without a collection scan.
 PHI is never logged. Structured logs carry the correlation id and the
 user/org id only; the body of the PA never leaves the database.
 
+Admins read the audit log through the `auditEvents` GraphQL query
+(see §3b). The read path is org-scoped server-side, supports optional
+`action` and `since` filters, and is capped at `limit ≤ 500`. The
+existing `ix_audit_org_ts` index keeps "newest N for my org" reads
+cheap regardless of total volume.
+
 ---
 
 ## 6. Where the user stories live in code
@@ -200,6 +242,8 @@ user/org id only; the body of the PA never leaves the database.
 | Guardrail — Clinician cannot decide | policy `RequireAdmin` on `Mutation.DecidePriorAuthorization` | `DecidePriorAuthorizationTests.cs::Clinician_cannot_decide_a_prior_authorization` |
 | **C** — Intake edits a draft PA | `Application/PriorAuthorizations/Handlers.cs` `UpdatePriorAuthorizationHandler`; domain `PriorAuthorization.Update` | `tests/SerenAuth.IntegrationTests/UpdatePriorAuthorizationTests.cs::Intake_can_edit_a_draft_prior_authorization` |
 | **D** — Cannot edit after submit | domain invariant `Update` throws unless `Status == Draft` | `UpdatePriorAuthorizationTests.cs::Editing_a_submitted_prior_authorization_is_rejected` |
+| **E** — Admin reads org's audit log | `Application/Auditing/GetAuditEventsHandler.cs`; resolver `Query.AuditEvents` | `tests/SerenAuth.IntegrationTests/AuditLogQueryTests.cs::Admin_can_read_their_organizations_audit_trail` |
+| **F** — Cross-tenant isolation on audit read | repo `ListByOrganizationAsync` filter is mandatory; org id comes from JWT, not the request | `AuditLogQueryTests.cs::Admin_cannot_see_another_organizations_audit_events` |
 
 The integration tests boot the full API host against a Testcontainers
 Mongo instance, so each one exercises the same five enforcement layers

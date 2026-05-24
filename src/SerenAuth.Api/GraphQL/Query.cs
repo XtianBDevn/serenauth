@@ -2,6 +2,7 @@ using HotChocolate;
 using HotChocolate.Authorization;
 using MediatR;
 using SerenAuth.Api.Authorization;
+using SerenAuth.Application.Auditing;
 using SerenAuth.Application.Dtos;
 using SerenAuth.Application.PriorAuthorizations;
 using SerenAuth.Domain.Enums;
@@ -36,4 +37,19 @@ public sealed class Query
         int limit = 100,
         CancellationToken ct = default)
         => mediator.Send(new GetProvidersQuery(limit), ct);
+
+    /// <summary>
+    /// Admin-only read of the append-only audit log, scoped to the
+    /// caller's organization. Mirrors the privilege model of
+    /// decidePriorAuthorization: most powerful read is gated by the
+    /// most restrictive policy.
+    /// </summary>
+    [Authorize(Policy = Policies.RequireAdmin)]
+    public Task<IReadOnlyList<AuditEventDto>> AuditEvents(
+        [Service] IMediator mediator,
+        AuditAction? action,
+        DateTime? since,
+        int limit = 100,
+        CancellationToken ct = default)
+        => mediator.Send(new GetAuditEventsQuery(action, since, limit), ct);
 }

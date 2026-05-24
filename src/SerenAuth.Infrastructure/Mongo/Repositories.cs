@@ -93,4 +93,31 @@ public sealed class AuditEventRepository(MongoContext ctx) : IAuditEventReposito
 {
     public Task InsertAsync(AuditEvent evt, CancellationToken ct) =>
         ctx.AuditEvents.InsertOneAsync(evt, cancellationToken: ct);
+
+    public async Task<IReadOnlyList<AuditEvent>> ListByOrganizationAsync(
+        string organizationId,
+        AuditAction? action,
+        DateTime? since,
+        int limit,
+        CancellationToken ct)
+    {
+        // Org filter is mandatory — never read across tenants. Uses the
+        // existing ix_audit_org_ts index so this is a cheap newest-N read.
+        var fb = Builders<AuditEvent>.Filter;
+        var filter = fb.Eq(a => a.OrganizationId, organizationId);
+        if (action.HasValue)
+        {
+            filter &= fb.Eq(a => a.Action, action.Value);
+        }
+        if (since.HasValue)
+        {
+            filter &= fb.Gte(a => a.Timestamp, since.Value);
+        }
+
+        return await ctx.AuditEvents
+            .Find(filter)
+            .SortByDescending(a => a.Timestamp)
+            .Limit(limit)
+            .ToListAsync(ct);
+    }
 }
