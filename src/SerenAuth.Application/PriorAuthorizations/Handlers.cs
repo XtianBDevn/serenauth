@@ -94,6 +94,31 @@ public sealed class SubmitPriorAuthorizationHandler(
     }
 }
 
+public sealed class WithdrawPriorAuthorizationHandler(
+    IPriorAuthorizationRepository repo,
+    ICurrentUser currentUser,
+    IAuditPublisher audit)
+    : IRequestHandler<WithdrawPriorAuthorizationCommand, PriorAuthorizationDto>
+{
+    public async Task<PriorAuthorizationDto> Handle(
+        WithdrawPriorAuthorizationCommand request,
+        CancellationToken cancellationToken)
+    {
+        var pa = await repo.GetAsync(currentUser.OrganizationId, request.Id, cancellationToken)
+            ?? throw new InvalidOperationException("PriorAuthorization not found.");
+
+        // Domain enforces "only Pending can be withdrawn" — terminal
+        // states refuse the transition, so withdrawing an already-
+        // approved/denied PA fails fast at the domain boundary.
+        pa.Withdraw();
+
+        await repo.UpdateAsync(pa, cancellationToken);
+        await audit.PublishAsync(AuditAction.WITHDRAW_PA, nameof(PriorAuthorization), pa.Id, cancellationToken);
+
+        return PriorAuthorizationDto.FromEntity(pa);
+    }
+}
+
 public sealed class DecidePriorAuthorizationHandler(
     IPriorAuthorizationRepository repo,
     ICurrentUser currentUser,

@@ -56,9 +56,18 @@ stateDiagram-v2
     Draft --> Pending: submitPriorAuthorization<br/>(Clinician/Admin)
     Pending --> Approved: decidePriorAuthorization(APPROVE)<br/>(Admin)
     Pending --> Denied: decidePriorAuthorization(DENY)<br/>(Admin)
+    Pending --> Withdrawn: withdrawPriorAuthorization<br/>(Clinician/Admin)
     Approved --> [*]
     Denied --> [*]
+    Withdrawn --> [*]
 ```
+
+Three terminal states, three different stories: **Approved** and **Denied**
+record what the payer decided; **Withdrawn** records what the *clinic*
+decided when the submission turned out to be wrong (wrong patient, wrong
+CPT, double-submit). Keeping them as distinct terminal states means a
+compliance review can answer "how many PAs did the payer actually deny?"
+without conflating it with our own retractions.
 
 The `Draft → Draft` self-transition is intentional: edits are allowed
 *only* while the PA is still a draft. Once `Submit()` flips it to
@@ -196,6 +205,7 @@ Two intentional non-features:
 | `createPriorAuthorization` | `RequirePaWrite` | — | ✓ | ✓ | ✓ |
 | `updatePriorAuthorization` (Draft only) | `RequirePaWrite` | — | ✓ | ✓ | ✓ |
 | `submitPriorAuthorization` | `RequirePaSubmit` | — | — | ✓ | ✓ |
+| `withdrawPriorAuthorization` | `RequirePaSubmit` | — | — | ✓ | ✓ |
 | `decidePriorAuthorization` | `RequireAdmin` | — | — | — | ✓ |
 | `auditEvents` query | `RequireAdmin` | — | — | — | ✓ |
 
@@ -215,6 +225,7 @@ append-only collection:
 | `CREATE_PA` | `CreatePriorAuthorizationHandler` |
 | `UPDATE_PA` | `UpdatePriorAuthorizationHandler` (Draft-only) |
 | `SUBMIT_PA` | `SubmitPriorAuthorizationHandler` |
+| `WITHDRAW_PA` | `WithdrawPriorAuthorizationHandler` |
 | `DECIDE_PA` | `DecidePriorAuthorizationHandler` |
 | `VIEW_PA` | `GetPriorAuthorizationsHandler` (one per list call) |
 
@@ -244,6 +255,8 @@ cheap regardless of total volume.
 | **D** — Cannot edit after submit | domain invariant `Update` throws unless `Status == Draft` | `UpdatePriorAuthorizationTests.cs::Editing_a_submitted_prior_authorization_is_rejected` |
 | **E** — Admin reads org's audit log | `Application/Auditing/GetAuditEventsHandler.cs`; resolver `Query.AuditEvents` | `tests/SerenAuth.IntegrationTests/AuditLogQueryTests.cs::Admin_can_read_their_organizations_audit_trail` |
 | **F** — Cross-tenant isolation on audit read | repo `ListByOrganizationAsync` filter is mandatory; org id comes from JWT, not the request | `AuditLogQueryTests.cs::Admin_cannot_see_another_organizations_audit_events` |
+| **G** — Clinician withdraws a Pending PA | `Application/PriorAuthorizations/Handlers.cs` `WithdrawPriorAuthorizationHandler`; domain `PriorAuthorization.Withdraw` | `tests/SerenAuth.IntegrationTests/WithdrawPriorAuthorizationTests.cs::Clinician_can_withdraw_a_pending_prior_authorization` |
+| **H** — Cannot withdraw a terminal PA | domain invariant `Withdraw` throws unless `Status == Pending` | `WithdrawPriorAuthorizationTests.cs::Withdrawing_an_approved_prior_authorization_is_rejected` |
 
 The integration tests boot the full API host against a Testcontainers
 Mongo instance, so each one exercises the same five enforcement layers

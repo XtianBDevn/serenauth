@@ -61,6 +61,15 @@ public sealed class DecidePriorAuthorizationCommandValidator
     }
 }
 
+public sealed class WithdrawPriorAuthorizationCommandValidator
+    : AbstractValidator<WithdrawPriorAuthorizationCommand>
+{
+    public WithdrawPriorAuthorizationCommandValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty().MaximumLength(64);
+    }
+}
+
 public sealed class GetPriorAuthorizationsQueryValidator
     : AbstractValidator<GetPriorAuthorizationsQuery>
 {

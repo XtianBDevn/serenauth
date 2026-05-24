@@ -133,6 +133,22 @@ public sealed class PriorAuthorization
     }
 
     /// <summary>
+    /// Clinic-driven transition Pending → Withdrawn. Used when the
+    /// submission was made in error (wrong patient, wrong CPT) and the
+    /// payer has not yet responded. Terminal — once withdrawn, the PA
+    /// cannot move further; create a new draft instead.
+    /// </summary>
+    public void Withdraw()
+    {
+        if (Status != PaStatus.Pending)
+        {
+            throw new InvalidOperationException($"Only pending authorizations can be withdrawn (current status: {Status}).");
+        }
+        Status = PaStatus.Withdrawn;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Hydration constructor used by the persistence layer. Internal so
     /// callers outside Infrastructure cannot fabricate arbitrary state.
     /// </summary>

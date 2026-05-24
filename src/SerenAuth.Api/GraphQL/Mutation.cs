@@ -25,6 +25,8 @@ public sealed record UpdatePriorAuthorizationInput(
 
 public sealed record SubmitPriorAuthorizationInput(string Id);
 
+public sealed record WithdrawPriorAuthorizationInput(string Id);
+
 public sealed record DecidePriorAuthorizationInput(string Id, PaDecision Decision);
 
 public sealed record LoginInput(string Email, string Password);
@@ -78,6 +80,18 @@ public sealed class Mutation
         SubmitPriorAuthorizationInput input,
         CancellationToken ct = default)
         => mediator.Send(new SubmitPriorAuthorizationCommand(input.Id), ct);
+
+    /// <summary>
+    /// Withdraws a Pending PA — clinic-side "take it back" before the
+    /// payer responds. Same policy as submit: the roles that can push
+    /// a PA out are the ones who can pull it back.
+    /// </summary>
+    [Authorize(Policy = Policies.RequirePaSubmit)]
+    public Task<PriorAuthorizationDto> WithdrawPriorAuthorization(
+        [Service] IMediator mediator,
+        WithdrawPriorAuthorizationInput input,
+        CancellationToken ct = default)
+        => mediator.Send(new WithdrawPriorAuthorizationCommand(input.Id), ct);
 
     /// <summary>
     /// Records the payer's decision on a Pending PA. Admin-only — this

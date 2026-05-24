@@ -47,6 +47,14 @@ public sealed record DecidePriorAuthorizationCommand(string Id, PaDecision Decis
     : IRequest<PriorAuthorizationDto>;
 
 /// <summary>
+/// Withdraws a Pending PA — the clinic taking back its own submission
+/// before the payer responds. Sibling of submit (same policy) so the
+/// roles that can push it out are also the ones that can pull it back.
+/// </summary>
+public sealed record WithdrawPriorAuthorizationCommand(string Id)
+    : IRequest<PriorAuthorizationDto>;
+
+/// <summary>
 /// Lists PAs for the caller's organization. Returned data is filtered
 /// server-side so a client cannot read another tenant's PAs.
 /// </summary>
