@@ -12,6 +12,13 @@ public interface IUserRepository
 {
     Task<User?> GetByEmailAsync(string email, CancellationToken ct);
     Task<User?> GetByIdAsync(string id, CancellationToken ct);
+
+    /// <summary>
+    /// Replaces a user document, scoped by id + organizationId to prevent
+    /// cross-tenant writes even if the caller's JWT is somehow misaligned.
+    /// Throws if the (id, orgId) tuple does not match an existing row.
+    /// </summary>
+    Task UpdateAsync(User user, CancellationToken ct);
 }
 
 public interface IProviderRepository

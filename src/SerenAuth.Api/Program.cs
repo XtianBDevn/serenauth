@@ -52,6 +52,10 @@ builder.Services
     {
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         options.SaveToken = false;
+        // Keep the JWT-spec claim names as-is. Default .NET behavior remaps
+        // 'sub' to ClaimTypes.NameIdentifier, which silently broke any
+        // handler that read sub via JwtRegisteredClaimNames.Sub.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,

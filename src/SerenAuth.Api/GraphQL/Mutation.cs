@@ -31,6 +31,8 @@ public sealed record DecidePriorAuthorizationInput(string Id, PaDecision Decisio
 
 public sealed record LoginInput(string Email, string Password);
 
+public sealed record ChangePasswordInput(string CurrentPassword, string NewPassword);
+
 public sealed class Mutation
 {
     /// <summary>
@@ -42,6 +44,19 @@ public sealed class Mutation
         LoginInput input,
         CancellationToken ct = default)
         => mediator.Send(new LoginCommand(input.Email, input.Password), ct);
+
+    /// <summary>
+    /// Self-service password rotation. The caller's identity is the JWT
+    /// <c>sub</c> — there is no way to change another user's password
+    /// through this mutation. Gated by RequireOrgScope so any
+    /// authenticated org-scoped user can rotate their own password.
+    /// </summary>
+    [Authorize(Policy = Policies.RequireOrgScope)]
+    public Task<ChangePasswordResultDto> ChangePassword(
+        [Service] IMediator mediator,
+        ChangePasswordInput input,
+        CancellationToken ct = default)
+        => mediator.Send(new ChangePasswordCommand(input.CurrentPassword, input.NewPassword), ct);
 
     [Authorize(Policy = Policies.RequirePaWrite)]
     public Task<PriorAuthorizationDto> CreatePriorAuthorization(

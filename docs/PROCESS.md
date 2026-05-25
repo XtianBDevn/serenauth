@@ -200,6 +200,7 @@ Two intentional non-features:
 | Operation | Policy | Viewer | Intake | Clinician | Admin |
 | --- | --- | :-: | :-: | :-: | :-: |
 | `login` | (none, public) | ✓ | ✓ | ✓ | ✓ |
+| `changePassword` | `RequireOrgScope` (self-service) | ✓ | ✓ | ✓ | ✓ |
 | `priorAuthorizations` query | `RequirePaRead` | ✓ | ✓ | ✓ | ✓ |
 | `patients` / `providers` | `RequireOrgScope` | ✓ | ✓ | ✓ | ✓ |
 | `createPriorAuthorization` | `RequirePaWrite` | — | ✓ | ✓ | ✓ |
@@ -222,6 +223,7 @@ append-only collection:
 | Action | Emitted by |
 | --- | --- |
 | `LOGIN` | `LoginHandler` |
+| `CHANGE_PASSWORD` | `ChangePasswordHandler` |
 | `CREATE_PA` | `CreatePriorAuthorizationHandler` |
 | `UPDATE_PA` | `UpdatePriorAuthorizationHandler` (Draft-only) |
 | `SUBMIT_PA` | `SubmitPriorAuthorizationHandler` |
@@ -242,6 +244,14 @@ Admins read the audit log through the `auditEvents` GraphQL query
 existing `ix_audit_org_ts` index keeps "newest N for my org" reads
 cheap regardless of total volume.
 
+Users can rotate their own credential via `changePassword`. The current
+password is verified with the same constant-time `IPasswordHasher.Verify`
+as login; a wrong current password produces the same redacted
+`"Invalid credentials."` error as a wrong email on login and emits no
+`CHANGE_PASSWORD` audit event. Successful rotations always do — the
+audit log distinguishes "user rotated their own password" from "admin
+reset it on their behalf" (the latter is not in scope yet).
+
 ---
 
 ## 6. Where the user stories live in code
@@ -257,6 +267,8 @@ cheap regardless of total volume.
 | **F** — Cross-tenant isolation on audit read | repo `ListByOrganizationAsync` filter is mandatory; org id comes from JWT, not the request | `AuditLogQueryTests.cs::Admin_cannot_see_another_organizations_audit_events` |
 | **G** — Clinician withdraws a Pending PA | `Application/PriorAuthorizations/Handlers.cs` `WithdrawPriorAuthorizationHandler`; domain `PriorAuthorization.Withdraw` | `tests/SerenAuth.IntegrationTests/WithdrawPriorAuthorizationTests.cs::Clinician_can_withdraw_a_pending_prior_authorization` |
 | **H** — Cannot withdraw a terminal PA | domain invariant `Withdraw` throws unless `Status == Pending` | `WithdrawPriorAuthorizationTests.cs::Withdrawing_an_approved_prior_authorization_is_rejected` |
+| **I** — User rotates their own password | `Application/Auth/ChangePasswordHandler.cs`; domain `User.ChangePassword` | `tests/SerenAuth.IntegrationTests/ChangePasswordTests.cs::User_can_change_their_own_password` |
+| **J** — Wrong current password rejected | constant-time `IPasswordHasher.Verify` in the handler; no audit on failure | `ChangePasswordTests.cs::Changing_password_with_wrong_current_is_rejected` |
 
 The integration tests boot the full API host against a Testcontainers
 Mongo instance, so each one exercises the same five enforcement layers

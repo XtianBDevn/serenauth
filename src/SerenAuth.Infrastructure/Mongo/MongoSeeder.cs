@@ -99,14 +99,14 @@ public sealed class MongoSeeder(
     private static User BuildUser(IPasswordHasher hasher, string orgId, string email, string name, Role role)
     {
         var (hash, salt) = hasher.Hash("ChangeMe!123");
-        return new User
+        var user = new User
         {
             OrganizationId = orgId,
             Email = email,
             DisplayName = name,
-            Role = role,
-            PasswordHash = hash,
-            PasswordSalt = salt
+            Role = role
         };
+        user.ChangePassword(hash, salt);
+        return user;
     }
 }

@@ -18,6 +18,19 @@ public sealed class UserRepository(MongoContext ctx) : IUserRepository
 
     public Task<User?> GetByIdAsync(string id, CancellationToken ct) =>
         ctx.Users.Find(u => u.Id == id).FirstOrDefaultAsync(ct)!;
+
+    public async Task UpdateAsync(User user, CancellationToken ct)
+    {
+        // Replace filtered on (id, organizationId) — defense in depth.
+        var filter = Builders<User>.Filter.And(
+            Builders<User>.Filter.Eq(u => u.Id, user.Id),
+            Builders<User>.Filter.Eq(u => u.OrganizationId, user.OrganizationId));
+        var result = await ctx.Users.ReplaceOneAsync(filter, user, cancellationToken: ct);
+        if (result.MatchedCount == 0)
+        {
+            throw new InvalidOperationException("User not found or not owned by org.");
+        }
+    }
 }
 
 public sealed class ProviderRepository(MongoContext ctx) : IProviderRepository

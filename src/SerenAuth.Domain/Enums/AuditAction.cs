@@ -15,6 +15,7 @@ public enum AuditAction
     SUBMIT_PA = 3,
     VIEW_PA = 4,
     DECIDE_PA = 5,
-    WITHDRAW_PA = 6
+    WITHDRAW_PA = 6,
+    CHANGE_PASSWORD = 7
 }
 #pragma warning restore CA1707
