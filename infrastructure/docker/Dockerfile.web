@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+# Build
+FROM node:20-bookworm-slim AS build
+WORKDIR /repo
+
+COPY apps/web/package.json apps/web/package-lock.json* apps/web/
+COPY packages/shared-types ./packages/shared-types
+
+RUN cd apps/web && npm install --no-audit --no-fund
+
+COPY apps/web ./apps/web
+RUN cd apps/web && npm run build
+
+# Run
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+RUN useradd -u 10001 -m serenauth && mkdir -p /app && chown -R serenauth:serenauth /app
+USER serenauth
+
+COPY --from=build --chown=serenauth:serenauth /repo/apps/web ./apps/web
+COPY --from=build --chown=serenauth:serenauth /repo/packages/shared-types ./packages/shared-types
+
+WORKDIR /app/apps/web
+EXPOSE 3000
+HEALTHCHECK --interval=20s --timeout=3s --start-period=20s --retries=5 \
+  CMD wget --spider -q http://localhost:3000/ || exit 1
+CMD ["npm", "run", "start"]
